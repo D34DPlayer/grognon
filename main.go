@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"time"
 
 	"d34d.one/grognon/internal/database"
 	"github.com/urfave/cli/v3"
@@ -11,6 +12,21 @@ import (
 
 type Config struct {
 	Data string
+}
+
+func backgroundTask(ctx context.Context, duration time.Duration, task func()) {
+	ticker := time.NewTicker(duration)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				task()
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			}
+		}
+	}()
 }
 
 func action(ctx context.Context, cfg Config) error {
@@ -25,11 +41,17 @@ func action(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return cli.Exit(err, 1)
 	}
-	_, err = database.SetupConnections(db)
+	cons, err := database.SetupConnections(db)
 	if err != nil {
 		return cli.Exit(err, 1)
 	}
+	database.ReflectAll(db, cons)
 
+	backgroundTask(ctx, 5*time.Minute, func() {
+		database.ReflectAll(db, cons)
+	})
+
+	<-ctx.Done()
 	return nil
 }
 

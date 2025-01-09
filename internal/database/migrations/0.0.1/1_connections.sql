@@ -10,3 +10,6 @@ CREATE TABLE connections (
     last_connected_at TIMESTAMP,
     last_error        TEXT
 );
+
+INSERT INTO connections (db_type, connection_url) VALUES
+('sqlite', './data/giveaway.db');

@@ -12,3 +12,16 @@ type Connection struct {
 	LastConnectedAt *time.Time
 	LastError       *string
 }
+
+type Table struct {
+	TableId int
+	Name    string
+}
+
+type Column struct {
+	Name      string
+	Type      string
+	Notnull   bool
+	DfltValue *string
+	PK        int
+}
