@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 
 	"github.com/yaitoo/sqle"
@@ -9,25 +10,67 @@ import (
 
 type Connections map[int]*sqle.DB
 
-func OnConnection(db *Database, id int, og_error error) error {
-	if og_error == nil {
-		log.Printf("Connected to connection %d", id)
+func pushToConnections(db *Database, con Connection, connections Connections) error {
+	var con_db *sqle.DB
+	var sqldb *sql.DB
+	var err error
 
-		_, err := db.Exec("UPDATE connections SET connected = true, last_error = NULL WHERE id = ?", id)
-		return err
-	} else {
-		log.Printf("Failed to connect to connection %d: %s", id, og_error)
-
-		_, err := db.Exec("UPDATE connections SET connected = false, last_error = ? WHERE id = ?", og_error.Error(), id)
+	switch con.DbType {
+	case "sqlite":
+		sqldb, err = sql.Open("sqlite3", "file:"+con.ConnectionUrl)
+		if err == nil {
+			con_db = sqle.Open(sqldb)
+			_, err = db.Exec("UPDATE connections SET connected = true, last_error = NULL WHERE connection_id = ?", con.ID)
+		} else {
+			_, err = db.Exec("UPDATE connections SET connected = false, last_error = ? WHERE connection_id = ?", err.Error(), con.ID)
+			if err == nil {
+				err = fmt.Errorf("failed to connect to connection %d: %s", con.ID, err)
+			}
+		}
+	default:
+		err = fmt.Errorf("unknown database type %s", con.DbType)
+	}
+	if err != nil {
 		return err
 	}
+
+	log.Printf("Connected to connection %d", con.ID)
+	connections[con.ID] = con_db
+	return nil
+}
+
+func AddConnection(db *Database, connections Connections, id int) error {
+	var con Connection
+	err := db.QueryRow("SELECT * FROM connections WHERE connection_id = ?", id).Scan(&con)
+	if err != nil {
+		return err
+	}
+
+	return pushToConnections(db, con, connections)
+}
+
+func RemoveConnection(db *Database, connections Connections, id int) error {
+	con, ok := connections[id]
+	if !ok {
+		return fmt.Errorf("connection %d not found", id)
+	}
+	err := con.Close()
+	if err != nil {
+		log.Printf("Failed to close connection %d: %s", id, err)
+	}
+
+	delete(connections, id)
+
+	_, err = db.Exec("UPDATE connections SET connected = false, last_error = 'Connection removed', deleted_at = CURRENT_TIMESTAMP WHERE connection_id = ?", id)
+	return err
 }
 
 func SetupConnections(db *Database) (Connections, error) {
+	log.Println("Setting up connections...")
 	connections := make(Connections)
 
 	var connection_list []Connection
-	rows, err := db.Query("SELECT * FROM connections")
+	rows, err := db.Query("SELECT * FROM connections WHERE deleted_at IS NULL")
 	if err != nil {
 		return nil, err
 	}
@@ -36,17 +79,9 @@ func SetupConnections(db *Database) (Connections, error) {
 	}
 
 	for _, con := range connection_list {
-		var con_db *sqle.DB
-		switch con.DbType {
-		case "sqlite":
-			sqldb, err := sql.Open("sqlite3", "file:"+con.ConnectionUrl)
-			OnConnection(db, con.ID, err)
-			if err == nil {
-				con_db = sqle.Open(sqldb)
-			}
-		}
-		if con_db != nil {
-			connections[con.ID] = con_db
+		err := pushToConnections(db, con, connections)
+		if err != nil {
+			log.Printf("Failed to connect to connection %d: %s", con.ID, err)
 		}
 	}
 

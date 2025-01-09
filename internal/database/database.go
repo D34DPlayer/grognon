@@ -15,6 +15,7 @@ type Database struct {
 }
 
 func Setup(ctx context.Context, dataDir string) (*Database, error) {
+	log.Println("Opening database...")
 	sqldb, err := sql.Open("sqlite3", "file:"+dataDir+"/grognon.db?cache=shared")
 	if err != nil {
 		return nil, fmt.Errorf("db: failed to open sqlite database %s: %w", dataDir, err)
@@ -24,7 +25,7 @@ func Setup(ctx context.Context, dataDir string) (*Database, error) {
 
 	db := &Database{sqleDb}
 
-	log.Println(("Migrating database..."))
+	log.Println(("Checking for migrations..."))
 	if err := db.Migrate(ctx); err != nil {
 		return nil, fmt.Errorf("db: failed to migrate database: %w", err)
 	}
