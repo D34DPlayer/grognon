@@ -5,10 +5,34 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/yaitoo/sqle"
 )
+
+type EpochTime struct {
+	time.Time
+	Valid bool
+}
+
+func (t *EpochTime) Scan(value interface{}) error {
+	if value == nil {
+		t.Time = time.Time{}
+		t.Valid = false
+		return nil
+	}
+	t.Valid = true
+	switch value := value.(type) {
+	case int64:
+		t.Time = time.Unix(value, 0)
+	case string:
+		t.Time, _ = time.Parse(time.RFC3339, value)
+	default:
+		return fmt.Errorf("unsupported type for EpochTime: %T", value)
+	}
+	return nil
+}
 
 type Database struct {
 	*sqle.DB

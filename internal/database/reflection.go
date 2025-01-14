@@ -10,7 +10,7 @@ import (
 )
 
 func reflectSqlite(db *Database, con_id int, con *sqle.DB) error {
-	log.Printf("Reflecting connection %d", con_id)
+	log.Printf("Reflecting connection %d...", con_id)
 
 	tx, err := db.BeginTx(context.TODO(), nil)
 	if err != nil {

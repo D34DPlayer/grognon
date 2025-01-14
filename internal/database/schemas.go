@@ -1,15 +1,13 @@
 package database
 
-import "time"
-
 type Connection struct {
 	ID              int
 	DbType          string
 	ConnectionUrl   string
-	CreatedAt       time.Time
-	DeletedAt       *time.Time
+	CreatedAt       EpochTime
+	DeletedAt       *EpochTime
 	Connected       bool
-	LastConnectedAt *time.Time
+	LastConnectedAt *EpochTime
 	LastError       *string
 }
 
@@ -26,19 +24,16 @@ type Column struct {
 	PK        int
 }
 
-type CronCreate struct {
+type Cron struct {
 	ConnectionId int
 	Name         string
 	Command      string
 	Schedule     string
-}
 
-type Cron struct {
-	*CronCreate
 	CronId    int
-	CreatedAt time.Time
-	DeletedAt *time.Time
-	LastRunAt *time.Time
+	CreatedAt EpochTime
+	DeletedAt *EpochTime
+	LastRunAt *EpochTime
 }
 
 type CronOutput struct {

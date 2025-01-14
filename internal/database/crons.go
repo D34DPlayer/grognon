@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/yaitoo/sqle"
@@ -94,8 +96,7 @@ func createCronTable(db *Database, con *sqle.DB, cron Cron) ([]CronOutput, error
 	}
 
 	tableQuery := fmt.Sprintf(`CREATE TABLE cron_%d (
-		cron_id   INTEGER NOT NULL REFERENCES crons(cron_id),
-		timestamp TIMESTAMP NOT NULL`, cron.CronId)
+		timestamp INTEGER NOT NULL`, cron.CronId)
 	indexQuery := fmt.Sprintf(
 		"CREATE INDEX cron_%d_timestamp ON cron_%d(timestamp);",
 		cron.CronId,
@@ -117,19 +118,19 @@ func createCronTable(db *Database, con *sqle.DB, cron Cron) ([]CronOutput, error
 	return outputs, nil
 }
 
-func AddCron(db *Database, cons Connections, cronInput CronCreate) error {
-	con, ok := cons[cronInput.ConnectionId]
+func AddCron(db *Database, cons Connections, cron Cron) error {
+	con, ok := cons[cron.ConnectionId]
 	if !ok {
-		return fmt.Errorf("connection %d not found", cronInput.ConnectionId)
+		return fmt.Errorf("connection %d not found", cron.ConnectionId)
 	}
 
 	// Create Cron in DB
 	res, err := db.Exec(
 		"INSERT INTO crons (connection_id, name, command, schedule) VALUES (?, ?, ?, ?);",
-		cronInput.ConnectionId,
-		cronInput.Name,
-		cronInput.Command,
-		cronInput.Schedule,
+		cron.ConnectionId,
+		cron.Name,
+		cron.Command,
+		cron.Schedule,
 	)
 	if err != nil {
 		return errors.Wrap(err, "Error inserting cron")
@@ -138,7 +139,6 @@ func AddCron(db *Database, cons Connections, cronInput CronCreate) error {
 	if err != nil {
 		return errors.Wrap(err, "Error getting cron ID")
 	}
-	cron := Cron{CronCreate: &cronInput}
 	cron.CronId = int(cronId)
 
 	// Create Cron table
@@ -169,4 +169,58 @@ func AddCron(db *Database, cons Connections, cronInput CronCreate) error {
 	}
 
 	return tx.Commit()
+}
+
+func ExecuteCrons(db *Database, cons Connections, schedule string) error {
+	log.Printf("Executing crons for schedule '%s'...", schedule)
+	var crons []Cron
+	rows, err := db.Query("SELECT * FROM crons WHERE schedule = ? AND deleted_at IS NULL", schedule)
+	if err != nil {
+		return errors.Wrap(err, "Error getting crons")
+	}
+	if err := rows.Bind(&crons); err != nil {
+		return errors.Wrap(err, "Error binding crons")
+	}
+	log.Printf("Found %d crons", len(crons))
+
+	for _, cron := range crons {
+		con, ok := cons[cron.ConnectionId]
+		if !ok {
+			log.Printf("connection %d not found", cron.ConnectionId)
+			continue
+		}
+
+		log.Printf("Executing cron %d...", cron.CronId)
+		now := time.Now().Unix()
+		objects, cols, err := executeCron(con, cron)
+		if err != nil {
+			log.Printf("Error executing cron %d: %s", cron.CronId, err)
+			continue
+		}
+		log.Printf("Saving results for cron %d", cron.CronId)
+		insertQuery := fmt.Sprintf("INSERT INTO cron_%d (timestamp", cron.CronId)
+		for _, col := range cols {
+			insertQuery += "," + col
+		}
+		insertQuery += ") VALUES "
+
+		var params []interface{}
+		for i := range objects {
+			insertQuery += "(?,"
+			params = append(params, now)
+			for _, col := range cols {
+				insertQuery += "?,"
+				params = append(params, objects[i][col])
+			}
+			insertQuery = insertQuery[:len(insertQuery)-1] + "),"
+		}
+		insertQuery = insertQuery[:len(insertQuery)-1] + ";"
+
+		if _, err := db.Exec(insertQuery, params...); err != nil {
+			log.Printf("Error inserting cron_%d: %s", cron.CronId, err)
+		}
+		log.Printf("Cron %d executed", cron.CronId)
+	}
+
+	return nil
 }

@@ -47,12 +47,23 @@ func action(ctx context.Context, cfg Config) error {
 	}
 	database.ReflectAll(db, cons)
 
-	backgroundTask(ctx, 5*time.Minute, func() {
+	backgroundTask(ctx, 15*time.Minute, func() {
 		database.ReflectAll(db, cons)
 	})
 
+	// TODO: Use latest run time instead of fixed intervals
+	backgroundTask(ctx, 1*time.Minute, func() {
+		database.ExecuteCrons(db, cons, "minute")
+	})
+	backgroundTask(ctx, 1*time.Hour, func() {
+		database.ExecuteCrons(db, cons, "hour")
+	})
+	backgroundTask(ctx, 1*24*time.Hour, func() {
+		database.ExecuteCrons(db, cons, "day")
+	})
+
 	// DEBUG STUFF
-	// err = database.AddCron(db, cons, database.CronCreate{
+	// err = database.AddCron(db, cons, database.Cron{
 	// 	ConnectionId: 0,
 	// 	Name:         "User count",
 	// 	Command:      "SELECT count(*) as count FROM streamer",

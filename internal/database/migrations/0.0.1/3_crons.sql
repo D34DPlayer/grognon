@@ -5,9 +5,9 @@ CREATE TABLE crons (
     command       TEXT      NOT NULL,
     schedule      TEXT      NOT NULL,
 
-    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at    TIMESTAMP,
-    last_run_at   TIMESTAMP
+    created_at    INTEGER   NOT NULL DEFAULT (unixepoch()),
+    deleted_at    INTEGER,
+    last_run_at   INTEGER
 );
 
 CREATE TABLE cron_outputs (
