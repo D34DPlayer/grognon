@@ -15,4 +15,4 @@ CREATE TABLE columns (
     pk            INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT columns_pk PRIMARY KEY (connection_id, table_name, name)
-)
+);

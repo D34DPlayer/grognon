@@ -51,6 +51,18 @@ func action(ctx context.Context, cfg Config) error {
 		database.ReflectAll(db, cons)
 	})
 
+	// DEBUG STUFF
+	// err = database.AddCron(db, cons, database.CronCreate{
+	// 	ConnectionId: 0,
+	// 	Name:         "User count",
+	// 	Command:      "SELECT count(*) as count FROM streamer",
+	// 	Schedule:     "minute",
+	// })
+	// if err != nil {
+	// 	return cli.Exit(err, 1)
+	// }
+	// end DEBUG STUFF
+
 	<-ctx.Done()
 	return nil
 }

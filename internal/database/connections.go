@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/pkg/errors"
 	"github.com/yaitoo/sqle"
 )
 
@@ -24,14 +25,14 @@ func pushToConnections(db *Database, con Connection, connections Connections) er
 		} else {
 			_, err = db.Exec("UPDATE connections SET connected = false, last_error = ? WHERE connection_id = ?", err.Error(), con.ID)
 			if err == nil {
-				err = fmt.Errorf("failed to connect to connection %d: %s", con.ID, err)
+				err = errors.Errorf("failed to connect to connection %d: %s", con.ID, err)
 			}
 		}
 	default:
 		err = fmt.Errorf("unknown database type %s", con.DbType)
 	}
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Error during the connection process")
 	}
 
 	log.Printf("Connected to connection %d", con.ID)
@@ -43,7 +44,7 @@ func AddConnection(db *Database, connections Connections, id int) error {
 	var con Connection
 	err := db.QueryRow("SELECT * FROM connections WHERE connection_id = ?", id).Scan(&con)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Error during the connection process")
 	}
 
 	return pushToConnections(db, con, connections)
@@ -52,7 +53,7 @@ func AddConnection(db *Database, connections Connections, id int) error {
 func RemoveConnection(db *Database, connections Connections, id int) error {
 	con, ok := connections[id]
 	if !ok {
-		return fmt.Errorf("connection %d not found", id)
+		return errors.Errorf("connection %d not found", id)
 	}
 	err := con.Close()
 	if err != nil {
@@ -62,7 +63,7 @@ func RemoveConnection(db *Database, connections Connections, id int) error {
 	delete(connections, id)
 
 	_, err = db.Exec("UPDATE connections SET connected = false, last_error = 'Connection removed', deleted_at = CURRENT_TIMESTAMP WHERE connection_id = ?", id)
-	return err
+	return errors.Wrap(err, "Error saving the disconnection")
 }
 
 func SetupConnections(db *Database) (Connections, error) {
