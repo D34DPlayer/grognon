@@ -8,7 +8,7 @@ CREATE TABLE crons (
     created_at    INTEGER   NOT NULL DEFAULT (unixepoch()),
     deleted_at    INTEGER,
     last_run_at   INTEGER
-);
+) STRICT;
 
 CREATE TABLE cron_outputs (
     cron_id INTEGER NOT NULL REFERENCES crons (cron_id),
@@ -16,4 +16,4 @@ CREATE TABLE cron_outputs (
     type   TEXT    NOT NULL,
 
     CONSTRAINT cron_outputs_pk PRIMARY KEY (cron_id, name)
-);
+) STRICT;
