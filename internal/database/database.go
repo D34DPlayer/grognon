@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"log"
 	"time"
@@ -32,6 +33,17 @@ func (t *EpochTime) Scan(value interface{}) error {
 		return fmt.Errorf("unsupported type for EpochTime: %T", value)
 	}
 	return nil
+}
+
+func (t EpochTime) Value() (driver.Value, error) {
+	if !t.Valid {
+		return nil, nil
+	}
+	return t.Time.Unix(), nil
+}
+
+func Now() EpochTime {
+	return EpochTime{time.Now(), true}
 }
 
 type Database struct {

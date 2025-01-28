@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/yaitoo/sqle"
@@ -191,7 +190,7 @@ func ExecuteCrons(db *Database, cons Connections, schedule string) error {
 		}
 
 		log.Printf("Executing cron %d...", cron.CronId)
-		now := time.Now().Unix()
+		now := Now()
 		objects, cols, err := executeCron(con, cron)
 		if err != nil {
 			log.Printf("Error executing cron %d: %s", cron.CronId, err)
