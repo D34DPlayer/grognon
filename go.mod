@@ -4,9 +4,10 @@ go 1.23.4
 
 require (
 	github.com/mattn/go-sqlite3 v1.14.24 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/urfave/cli/v3 v3.0.0-beta1 // indirect
 	github.com/yaitoo/sqle v1.5.2 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
+	github.com/romsar/gonertia v1.3.5 // indirect
 )
 
 require (

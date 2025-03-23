@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/pkg/errors"
 	"github.com/yaitoo/sqle"
@@ -171,7 +171,7 @@ func AddCron(db *Database, cons Connections, cron Cron) error {
 }
 
 func ExecuteCrons(db *Database, cons Connections, schedule string) error {
-	log.Printf("Executing crons for schedule '%s'...", schedule)
+	slog.Info("Executing crons for schedule", slog.String("schedule", schedule))
 	var crons []Cron
 	rows, err := db.Query("SELECT * FROM crons WHERE schedule = ? AND deleted_at IS NULL", schedule)
 	if err != nil {
@@ -180,23 +180,23 @@ func ExecuteCrons(db *Database, cons Connections, schedule string) error {
 	if err := rows.Bind(&crons); err != nil {
 		return errors.Wrap(err, "Error binding crons")
 	}
-	log.Printf("Found %d crons", len(crons))
+	slog.Info("Found crons", slog.Int("count", len(crons)))
 
 	for _, cron := range crons {
 		con, ok := cons[cron.ConnectionId]
 		if !ok {
-			log.Printf("connection %d not found", cron.ConnectionId)
+			slog.Error("connection not found", slog.Int("id", cron.ConnectionId))
 			continue
 		}
 
-		log.Printf("Executing cron %d...", cron.CronId)
+		slog.Info("Executing cron", slog.Int("id", cron.CronId))
 		now := Now()
 		objects, cols, err := executeCron(con, cron)
 		if err != nil {
-			log.Printf("Error executing cron %d: %s", cron.CronId, err)
+			slog.Error("Error executing cron", slog.Int("id", cron.CronId), slog.Any("error", err))
 			continue
 		}
-		log.Printf("Saving results for cron %d", cron.CronId)
+		slog.Info("Saving results for cron", slog.Int("id", cron.CronId))
 		insertQuery := fmt.Sprintf("INSERT INTO cron_%d (timestamp", cron.CronId)
 		for _, col := range cols {
 			insertQuery += "," + col
@@ -216,9 +216,10 @@ func ExecuteCrons(db *Database, cons Connections, schedule string) error {
 		insertQuery = insertQuery[:len(insertQuery)-1] + ";"
 
 		if _, err := db.Exec(insertQuery, params...); err != nil {
-			log.Printf("Error inserting cron_%d: %s", cron.CronId, err)
+			slog.Error("Error inserting cron", slog.Int("id", cron.CronId), slog.Any("error", err))
+			continue
 		}
-		log.Printf("Cron %d executed", cron.CronId)
+		slog.Info("Cron executed", slog.Int("id", cron.CronId))
 	}
 
 	return nil

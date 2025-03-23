@@ -3,7 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/pkg/errors"
 	"github.com/yaitoo/sqle"
@@ -35,7 +35,7 @@ func pushToConnections(db *Database, con Connection, connections Connections) er
 		return errors.Wrap(err, "Error during the connection process")
 	}
 
-	log.Printf("Connected to connection %d", con.ID)
+	slog.Info("Connected to connection", slog.Int("id", con.ID), slog.String("type", con.DbType), slog.String("url", con.ConnectionUrl))
 	connections[con.ID] = con_db
 	return nil
 }
@@ -57,7 +57,7 @@ func RemoveConnection(db *Database, connections Connections, id int) error {
 	}
 	err := con.Close()
 	if err != nil {
-		log.Printf("Failed to close connection %d: %s", id, err)
+		slog.Error("Failed to close connection", slog.Int("id", id), slog.Any("error", err))
 	}
 
 	delete(connections, id)
@@ -67,7 +67,7 @@ func RemoveConnection(db *Database, connections Connections, id int) error {
 }
 
 func SetupConnections(db *Database) (Connections, error) {
-	log.Println("Setting up connections...")
+	slog.Info("Setting up connections...")
 	connections := make(Connections)
 
 	var connection_list []Connection
@@ -82,7 +82,7 @@ func SetupConnections(db *Database) (Connections, error) {
 	for _, con := range connection_list {
 		err := pushToConnections(db, con, connections)
 		if err != nil {
-			log.Printf("Failed to connect to connection %d: %s", con.ID, err)
+			slog.Error("Failed to connect to connection", slog.Int("id", con.ID), slog.Any("error", err))
 		}
 	}
 

@@ -1,2 +1,8 @@
 .vscode/
 data/
+
+node_modules/
+public/
+bootstrap/
+tmp/
+.env

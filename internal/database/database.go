@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -51,7 +51,7 @@ type Database struct {
 }
 
 func Setup(ctx context.Context, dataDir string) (*Database, error) {
-	log.Println("Opening database...")
+	slog.Info("Opening database", slog.String("path", dataDir))
 	sqldb, err := sql.Open("sqlite3", "file:"+dataDir+"/grognon.db?cache=shared")
 	if err != nil {
 		return nil, fmt.Errorf("db: failed to open sqlite database %s: %w", dataDir, err)
@@ -61,11 +61,11 @@ func Setup(ctx context.Context, dataDir string) (*Database, error) {
 
 	db := &Database{sqleDb}
 
-	log.Println(("Checking for migrations..."))
+	slog.Info("Checking for migrations")
 	if err := db.Migrate(ctx); err != nil {
 		return nil, fmt.Errorf("db: failed to migrate database: %w", err)
 	}
-	log.Println("Database migrated")
+	slog.Info("Database migrated")
 
 	return db, nil
 }

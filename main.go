@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
+	"d34d.one/grognon/internal/backend"
 	"d34d.one/grognon/internal/database"
 	"github.com/urfave/cli/v3"
 )
@@ -74,6 +75,10 @@ func action(ctx context.Context, cfg Config) error {
 	// }
 	// end DEBUG STUFF
 
+	if err := backend.Setup(); err != nil {
+		return cli.Exit(err, 1)
+	}
+
 	<-ctx.Done()
 	return nil
 }
@@ -100,6 +105,6 @@ func main() {
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+		slog.Error("Error: ", slog.Any("error", err))
 	}
 }

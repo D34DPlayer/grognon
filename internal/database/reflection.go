@@ -3,14 +3,14 @@ package database
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/pkg/errors"
 	"github.com/yaitoo/sqle"
 )
 
 func reflectSqlite(db *Database, con_id int, con *sqle.DB) error {
-	log.Printf("Reflecting connection %d...", con_id)
+	slog.Info("Reflecting connection", slog.Int("id", con_id))
 
 	tx, err := db.BeginTx(context.TODO(), nil)
 	if err != nil {
@@ -76,7 +76,7 @@ func reflectSqlite(db *Database, con_id int, con *sqle.DB) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to get rows affected")
 		}
-		log.Println("Inserted", cnt, "columns for table", table)
+		slog.Info("Inserted columns for table", slog.String("table", table), slog.Int("count", int(cnt)))
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -103,7 +103,7 @@ func ReflectDB(db *Database, connections Connections, con Connection) error {
 }
 
 func ReflectAll(db *Database, connections Connections) error {
-	log.Println("Reflecting all connections...")
+	slog.Info("Reflecting all connections...")
 	var connection_list []Connection
 	rows, err := db.Query("SELECT * FROM connections WHERE deleted_at IS NULL")
 	if err != nil {
