@@ -1,141 +1,110 @@
 package backend
 
 import (
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
-	"path"
-	"strings"
 
+	"d34d.one/grognon/internal/database"
+	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	inertia "github.com/romsar/gonertia"
 )
 
-func Setup() error {
-	i := initInertia()
+func Setup(db *database.Database, cons database.Connections, ssrHost string) error {
+	sessionKey := os.Getenv("SESSION_KEY")
+	if sessionKey == "" {
+		slog.Warn("SESSION_KEY not set")
+		sessionKey = "grognon"
+	}
+	store := sessions.NewCookieStore([]byte(sessionKey))
+	i := initInertia(ssrHost)
 
-	mux := http.NewServeMux()
+	router := mux.NewRouter()
 
-	mux.Handle("/build/", http.StripPrefix("/build/", http.FileServer(http.Dir("./public/build"))))
-	mux.Handle("/", homeHandler(i))
+	router.PathPrefix("/build").Handler(http.StripPrefix("/build/", http.FileServer(http.Dir("./public/build"))))
 
-	return http.ListenAndServe(":3000", mux)
+	router.Methods("GET").Path("/connections/create").
+		Handler(GetNewConnections(i))
+	router.Methods("GET").Path("/connections/{connection_id}").
+		Handler(GetConnection(i, db))
+	router.Methods("GET").Path("/connections/{connection_id}/crons").
+		Handler(GetCrons(i, db))
+	router.Methods("GET").Path("/connections/{connection_id}/crons/create").
+		Handler(GetNewCrons(i, db))
+	router.Methods("GET").Path("/connections").
+		Handler(GetConnections(i, db))
+	router.Methods("POST").Path("/connections").
+		Handler(PostNewConnections(i, db, cons))
+	router.Methods("GET").Path("/crons/create").
+		Handler(GetNewCrons(i, db))
+	router.Methods("GET").Path("/crons/{cron_id}/data").
+		Handler(GetCronData(i, db))
+	router.Methods("GET").Path("/crons/{cron_id}").
+		Handler(GetCron(i, db))
+	router.Methods("GET").Path("/crons").
+		Handler(GetCrons(i, db))
+	router.Methods("POST").Path("/crons").
+		Handler(PostNewCrons(i, db, cons))
+	router.Methods("GET").Path("/").
+		Handler(http.RedirectHandler("/connections", http.StatusTemporaryRedirect))
+	router.PathPrefix("/").
+		Handler(NotFound(i))
+
+	return http.ListenAndServe(":3000", SessionMiddleware(store, router))
 }
 
-func initInertia() *inertia.Inertia {
-	viteHotFile := "./public/hot"
-	rootViewFile := "./index.html"
-
-	// check if laravel-vite-plugin is running in dev mode (it puts a "hot" file in the public folder)
-	_, err := os.Stat(viteHotFile)
-	if err == nil {
-		i, err := inertia.NewFromFile(
-			rootViewFile,
-			inertia.WithSSR(),
-		)
-		if err != nil {
-			slog.Error(err.Error())
-		}
-		i.ShareTemplateFunc("vite", func(entry string) (string, error) {
-			content, err := os.ReadFile(viteHotFile)
-			if err != nil {
-				return "", err
-			}
-			url := strings.TrimSpace(string(content))
-			if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
-				url = url[strings.Index(url, ":")+1:]
-			} else {
-				url = "//localhost:8080"
-			}
-			if entry != "" && !strings.HasPrefix(entry, "/") {
-				entry = "/" + entry
-			}
-			return url + entry, nil
-		})
-		return i
-	}
-
-	// laravel-vite-plugin not running in dev mode, use build manifest file
-	manifestPath := "./public/build/manifest.json"
-
-	// check if the manifest file exists, if not, rename it
-	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
-		// move the manifest from ./public/build/.vite/manifest.json to ./public/build/manifest.json
-		// so that the vite function can find it
-		err := os.Rename("./public/build/.vite/manifest.json", "./public/build/manifest.json")
-		if err != nil {
-			return nil
-		}
-	}
-
-	i, err := inertia.NewFromFile(
-		rootViewFile,
-		inertia.WithVersionFromFile(manifestPath),
-		inertia.WithSSR(),
-	)
-	if err != nil {
-		slog.Error("Failed initializing Inertia", "error", err)
-	}
-
-	i.ShareTemplateFunc("vite", vite(manifestPath, "/build/"))
-
-	return i
-}
-
-func vite(manifestPath, buildDir string) func(path string) (string, error) {
-	f, err := os.Open(manifestPath)
-	if err != nil {
-		slog.Error("cannot open provided vite manifest file", slog.Any("error", err))
-		return nil
-	}
-	defer f.Close()
-
-	viteAssets := make(map[string]*struct {
-		File   string `json:"file"`
-		Source string `json:"src"`
-	})
-	err = json.NewDecoder(f).Decode(&viteAssets)
-	// print content of viteAssets
-	for k, v := range viteAssets {
-		slog.Info("viteAssets", slog.Any(k, v.File))
-	}
-
-	if err != nil {
-		slog.Error("cannot unmarshal vite manifest file to json", slog.Any("error", err))
-		return nil
-	}
-
-	return func(p string) (string, error) {
-		if val, ok := viteAssets[p]; ok {
-			return path.Join("/", buildDir, val.File), nil
-		}
-		return "", fmt.Errorf("asset %q not found", p)
-	}
-}
-
-func newHandler(i *inertia.Inertia, name string, props inertia.Props) http.Handler {
+func GetHome(i *inertia.Inertia) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		err := i.Render(w, r, name, props)
-		if err != nil {
-			handleServerErr(w, err)
-			return
-		}
+		Render(w, r, i, "Home", nil)
 	}
 
 	return i.Middleware(http.HandlerFunc(fn))
 }
 
-func homeHandler(i *inertia.Inertia) http.Handler {
-	props := inertia.Props{
-		"text": "Inertia.js with Vue.js and Go! 💙",
+func NotFound(i *inertia.Inertia) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		props := inertia.Props{
+			"url": r.URL.Path,
+		}
+
+		Render(w, r, i, "NotFound", props)
 	}
 
-	return newHandler(i, "Home", props)
+	return i.Middleware(http.HandlerFunc(fn))
 }
 
-func handleServerErr(w http.ResponseWriter, err error) {
-	slog.Error("http error", slog.Any("error", err))
-	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte("server error"))
+type Errors struct {
+	session *sessions.Session
+	errs    inertia.ValidationErrors
+}
+
+func NewErrors(r *http.Request) *Errors {
+	session := GetSession(r)
+	return &Errors{session: session, errs: make(inertia.ValidationErrors)}
+}
+
+func (e *Errors) Count() int {
+	return len(e.errs)
+}
+
+func (e *Errors) HasErrors() bool {
+	return e.Count() > 0
+}
+
+func (e *Errors) Add(key string, err error) {
+	e.errs[key] = err.Error()
+}
+
+func (e *Errors) Save(w http.ResponseWriter, r *http.Request) {
+	e.session.Values["errors"] = e.errs
+	e.session.Save(r, w)
+}
+
+func (e *Errors) Request(r *http.Request) *http.Request {
+	ctx := r.Context()
+	ctx = inertia.SetProps(ctx, inertia.Props{
+		"errors": e.errs,
+	})
+	return r.WithContext(ctx)
 }

@@ -5,11 +5,15 @@
     "paths": {
       "@/*": [
         "./frontend/*"
+      ],
+      "$/*": [
+        "./*"
       ]
     }
   },
   "include": [
     "env.d.ts",
+    "frontend/components.d.ts",
     "frontend/**/*",
     "frontend/**/*.vue"
   ],

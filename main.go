@@ -4,30 +4,16 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"time"
 
 	"d34d.one/grognon/internal/backend"
+	"d34d.one/grognon/internal/background"
 	"d34d.one/grognon/internal/database"
 	"github.com/urfave/cli/v3"
 )
 
 type Config struct {
-	Data string
-}
-
-func backgroundTask(ctx context.Context, duration time.Duration, task func()) {
-	ticker := time.NewTicker(duration)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				task()
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			}
-		}
-	}()
+	Data    string
+	SsrHost string
 }
 
 func action(ctx context.Context, cfg Config) error {
@@ -46,36 +32,11 @@ func action(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return cli.Exit(err, 1)
 	}
-	database.ReflectAll(db, cons)
 
-	backgroundTask(ctx, 15*time.Minute, func() {
-		database.ReflectAll(db, cons)
-	})
+	background.SetupReflection(ctx, db, cons)
+	background.SetupCronJobs(ctx, db, cons)
 
-	// TODO: Use latest run time instead of fixed intervals
-	backgroundTask(ctx, 1*time.Minute, func() {
-		database.ExecuteCrons(db, cons, "minute")
-	})
-	backgroundTask(ctx, 1*time.Hour, func() {
-		database.ExecuteCrons(db, cons, "hour")
-	})
-	backgroundTask(ctx, 1*24*time.Hour, func() {
-		database.ExecuteCrons(db, cons, "day")
-	})
-
-	// DEBUG STUFF
-	// err = database.AddCron(db, cons, database.Cron{
-	// 	ConnectionId: 0,
-	// 	Name:         "User count",
-	// 	Command:      "SELECT count(*) as count FROM streamer",
-	// 	Schedule:     "minute",
-	// })
-	// if err != nil {
-	// 	return cli.Exit(err, 1)
-	// }
-	// end DEBUG STUFF
-
-	if err := backend.Setup(); err != nil {
+	if err := backend.Setup(db, cons, cfg.SsrHost); err != nil {
 		return cli.Exit(err, 1)
 	}
 
@@ -91,6 +52,12 @@ func main() {
 			Aliases: []string{"d"},
 			Usage:   "Folder where the data is stored",
 		},
+		&cli.StringFlag{
+			Name:    "ssr",
+			Value:   "http://127.0.0.1:13714",
+			Aliases: []string{"s"},
+			Usage:   "Hostname for SSR",
+		},
 	}
 	cmd := cli.Command{
 		Name:  "grognon",
@@ -98,7 +65,8 @@ func main() {
 		Flags: flags,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			config := Config{
-				Data: cmd.String("data"),
+				Data:    cmd.String("data"),
+				SsrHost: cmd.String("ssr"),
 			}
 			return action(ctx, config)
 		},

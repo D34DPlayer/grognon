@@ -9,8 +9,8 @@ import (
 	"github.com/yaitoo/sqle"
 )
 
-func reflectSqlite(db *Database, con_id int, con *sqle.DB) error {
-	slog.Info("Reflecting connection", slog.Int("id", con_id))
+func reflectSqlite(db *Database, con_id int64, con *sqle.DB) error {
+	slog.Info("Reflecting connection", slog.Int64("id", con_id))
 
 	tx, err := db.BeginTx(context.TODO(), nil)
 	if err != nil {
@@ -86,14 +86,14 @@ func reflectSqlite(db *Database, con_id int, con *sqle.DB) error {
 }
 
 func ReflectDB(db *Database, connections Connections, con Connection) error {
-	con_db, ok := connections[con.ID]
+	con_db, ok := connections[con.ConnectionId]
 	if !ok {
-		return fmt.Errorf("Connection %d not found", con.ID)
+		return fmt.Errorf("Connection %d not found", con.ConnectionId)
 	}
 
 	switch con.DbType {
 	case "sqlite":
-		if err := reflectSqlite(db, con.ID, con_db); err != nil {
+		if err := reflectSqlite(db, con.ConnectionId, con_db); err != nil {
 			return errors.Wrap(err, "failed to reflect sqlite database")
 		}
 	default:
@@ -116,9 +116,21 @@ func ReflectAll(db *Database, connections Connections) error {
 	for _, con := range connection_list {
 		err := ReflectDB(db, connections, con)
 		if err != nil {
-			fmt.Printf("Failed to reflect connection %d: %s\n", con.ID, err)
+			fmt.Printf("Failed to reflect connection %d: %s\n", con.ConnectionId, err)
 		}
 	}
 
 	return nil
+}
+
+func GetColumns(db *Database, con_id int64) ([]Column, error) {
+	var cols []Column
+	rows, err := db.Query("SELECT * FROM columns WHERE connection_id = ? ", con_id)
+	if err != nil {
+		return nil, err
+	}
+	if err := rows.Bind(&cols); err != nil {
+		return nil, err
+	}
+	return cols, nil
 }

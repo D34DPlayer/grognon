@@ -10,5 +10,5 @@ CREATE TABLE connections (
     last_error        TEXT
 ) STRICT;
 
-INSERT INTO connections (db_type, connection_url) VALUES
-('sqlite', './data/giveaway.db');
+-- INSERT INTO connections (db_type, connection_url) VALUES
+-- ('sqlite', './data/giveaway.db');

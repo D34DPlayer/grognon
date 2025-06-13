@@ -1,0 +1,19 @@
+services:
+  grognon-frontend:
+    image: d34d/grognon-frontend:latest
+    build:
+      context: .
+      target: runner-node
+
+  grognon-backend:
+    image: d34d/grognon-backend:latest
+    build:
+      context: .
+      target: runner-go
+    command:
+      - --data=/app/data
+      - --ssr=http://grognon-frontend:13714
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "3000:3000"
