@@ -13,6 +13,7 @@ export default antfu({
       '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
       'no-console': 'off',
       'import/first': 'off',
+      'no-alert': 'off',
     },
   },
 ])

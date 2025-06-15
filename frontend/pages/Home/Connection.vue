@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { router } from '@inertiajs/vue3'
 import type { Column, Connection } from '@/types'
 import ConnectionChip from '@/components/ConnectionChip.vue'
 import { useLink } from '@/composables'
+import { router } from '@inertiajs/vue3'
 import { computed, defineProps } from 'vue'
 import Layout from '../Layout.vue'
 import HomeLayout from './Layout.vue'
@@ -32,7 +32,7 @@ const colsPerTable = computed(() => {
   return cols
 })
 
-const deleteConnection = () => {
+function deleteConnection() {
   if (confirm('Are you sure you want to delete this connection?')) {
     router.delete(`/connections/${props.connectionId}`)
   }
@@ -79,7 +79,7 @@ const deleteConnection = () => {
         >
           Create Cron
         </v-btn>
-        <v-btn @click="deleteConnection" color="error">
+        <v-btn color="error" @click="deleteConnection">
           Delete Connection
         </v-btn>
       </v-card-actions>

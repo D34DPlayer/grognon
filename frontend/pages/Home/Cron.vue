@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { router } from '@inertiajs/vue3'
 import type { Connection, Cron, CronOutput } from '@/types'
 import { getExtensions } from '@/codemirror'
 import { useLink } from '@/composables'
+import { router } from '@inertiajs/vue3'
 import { Codemirror } from 'vue-codemirror'
 import Layout from '../Layout.vue'
 import HomeLayout from './Layout.vue'
@@ -17,7 +17,7 @@ const props = defineProps<{
   cronOutputs?: CronOutput[]
 }>()
 
-const deleteCron = () => {
+function deleteCron() {
   if (confirm('Are you sure you want to delete this cron?')) {
     router.delete(`/crons/${props.cron?.CronId}`)
   }
@@ -54,9 +54,9 @@ const deleteCron = () => {
           View Connection
         </v-btn>
         <v-btn
-          @click="deleteCron"
-          color="error"
           v-if="props.cron.CronId"
+          color="error"
+          @click="deleteCron"
         >
           Delete Cron
         </v-btn>

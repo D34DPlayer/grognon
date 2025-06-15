@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Cron, CronOutput } from '@/types'
-import { displayTime } from '@/utils'
 import { useLink } from '@/composables'
+import { displayTime } from '@/utils'
 import { computed } from 'vue'
 import Layout from '../Layout.vue'
 import HomeLayout from './Layout.vue'
