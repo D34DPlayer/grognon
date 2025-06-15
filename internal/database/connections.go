@@ -72,14 +72,20 @@ func AddConnection(db *Database, connections Connections, input ConnectionCreate
 	}
 	err = pushToConnections(db, *con, connections)
 	if err != nil {
-		RemoveConnection(db, connections, id)
+		_ = DeleteConnection(db, connections, id)
 		return nil, errors.Wrap(err, "Error pushing connection")
 	}
 	return con, nil
 }
 
-func RemoveConnection(db *Database, connections Connections, id int64) error {
-	_, err := db.Exec("UPDATE connections SET connected = false, last_error = 'Connection removed', deleted_at = unixepoch() WHERE connection_id = ?", id)
+func DeleteConnection(db *Database, connections Connections, id int64) error {
+	// Delete related crons
+	_, err := db.Exec("UPDATE crons SET deleted_at = unixepoch() WHERE connection_id = ? AND deleted_at IS NOT NULL", id)
+	if err != nil {
+		return errors.Wrap(err, "Error deleting crons for connection")
+	}
+	// Delete connection
+	_, err = db.Exec("UPDATE connections SET connected = false, last_error = 'Connection removed', deleted_at = unixepoch() WHERE connection_id = ?", id)
 	if err != nil {
 		return errors.Wrap(err, "Error saving the disconnection")
 	}

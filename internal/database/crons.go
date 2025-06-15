@@ -18,7 +18,11 @@ func executeCron(con *sqle.DB, cron Cron) ([]Object, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("Error closing rows", slog.Any("error", err))
+		}
+	}()
 
 	cols, err := rows.Columns()
 	if err != nil {
@@ -147,7 +151,7 @@ func AddCron(db *Database, cons Connections, input CronCreate) (*Cron, error) {
 	// Create Cron table
 	outputs, err := createCronTable(db, con, *cron)
 	if err != nil {
-		db.Exec("DELETE FROM crons WHERE cron_id = ?", cron.CronId)
+		_, _ = db.Exec("DELETE FROM crons WHERE cron_id = ?", cron.CronId)
 		return nil, errors.Wrap(err, "Error creating cron table")
 	}
 
@@ -167,7 +171,7 @@ func AddCron(db *Database, cons Connections, input CronCreate) (*Cron, error) {
 	insertQuery = insertQuery[:len(insertQuery)-1] + ";"
 
 	if _, err := tx.Exec(insertQuery, params...); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return nil, errors.Wrap(err, "Error inserting cron outputs")
 	}
 
@@ -292,7 +296,7 @@ func GetCronOutputs(db *Database, cronId int64) ([]CronOutput, error) {
 	return outputs, nil
 }
 
-func DeleteCron(db *Database, cronId int) error {
+func DeleteCron(db *Database, cronId int64) error {
 	// Mark cron as deleted
 	if _, err := db.Exec("UPDATE crons SET deleted_at = ? WHERE cron_id = ?", Now(), cronId); err != nil {
 		return errors.Wrap(err, "Error deleting cron")
@@ -309,7 +313,7 @@ func UpdateCron(db *Database, con *sqle.DB, cron Cron) error {
 	}
 	oldOutputs, err := GetCronOutputs(db, cron.CronId)
 	if err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return errors.Wrap(err, "Error getting cron outputs")
 	}
 
@@ -326,18 +330,18 @@ func UpdateCron(db *Database, con *sqle.DB, cron Cron) error {
 
 	newOutputs, err := reflectCron(con, cron)
 	if err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return errors.Wrap(err, "Error reflecting cron")
 	}
 
 	if len(newOutputs) != len(oldOutputs) {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return fmt.Errorf("cannot update cron outputs, number of outputs changed: %d -> %d", len(oldOutputs), len(newOutputs))
 	}
 
 	for i := range oldOutputs {
 		if oldOutputs[i].Name != newOutputs[i].Name || oldOutputs[i].Type != newOutputs[i].Type {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("cannot update cron outputs, output %d changed: %s %s -> %s %s",
 				i, oldOutputs[i].Name, oldOutputs[i].Type, newOutputs[i].Name, newOutputs[i].Type)
 		}

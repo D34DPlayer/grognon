@@ -12,7 +12,7 @@ import (
 	inertia "github.com/romsar/gonertia"
 )
 
-func initInertia(ssrHost string) *inertia.Inertia {
+func initInertia(ssrHost string) (*inertia.Inertia, error) {
 	viteHotFile := "./public/hot"
 	rootViewFile := "./index.html"
 
@@ -24,9 +24,10 @@ func initInertia(ssrHost string) *inertia.Inertia {
 			inertia.WithSSR(ssrHost),
 		)
 		if err != nil {
-			slog.Error(err.Error())
+			return nil, err
 		}
-		i.ShareTemplateFunc("vite", func(entry string) (string, error) {
+
+		err = i.ShareTemplateFunc("vite", func(entry string) (string, error) {
 			content, err := os.ReadFile(viteHotFile)
 			if err != nil {
 				return "", err
@@ -42,7 +43,7 @@ func initInertia(ssrHost string) *inertia.Inertia {
 			}
 			return url + entry, nil
 		})
-		return i
+		return i, err
 	}
 
 	// laravel-vite-plugin not running in dev mode, use build manifest file
@@ -54,7 +55,7 @@ func initInertia(ssrHost string) *inertia.Inertia {
 		// so that the vite function can find it
 		err := os.Rename("./public/build/.vite/manifest.json", "./public/build/manifest.json")
 		if err != nil {
-			return nil
+			return nil, err
 		}
 	}
 
@@ -65,11 +66,12 @@ func initInertia(ssrHost string) *inertia.Inertia {
 	)
 	if err != nil {
 		slog.Error("Failed initializing Inertia", "error", err)
+		return nil, err
 	}
 
-	i.ShareTemplateFunc("vite", vite(manifestPath, "/build/"))
+	err = i.ShareTemplateFunc("vite", vite(manifestPath, "/build/"))
 
-	return i
+	return i, err
 }
 
 func vite(manifestPath, buildDir string) func(path string) (string, error) {
@@ -78,7 +80,11 @@ func vite(manifestPath, buildDir string) func(path string) (string, error) {
 		slog.Error("cannot open provided vite manifest file", slog.Any("error", err))
 		return nil
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Error("Failed to close vite manifest file", slog.Any("error", err))
+		}
+	}()
 
 	viteAssets := make(map[string]*struct {
 		File   string `json:"file"`
@@ -106,7 +112,11 @@ func vite(manifestPath, buildDir string) func(path string) (string, error) {
 func handleServerErr(w http.ResponseWriter, err error) {
 	slog.Error("http error", slog.Any("error", err))
 	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte("server error"))
+
+	_, writeErr := w.Write([]byte("server error"))
+	if writeErr != nil {
+		slog.Error("Failed to write error response", "error", writeErr)
+	}
 }
 
 func Render(w http.ResponseWriter, r *http.Request, i *inertia.Inertia, name string, props inertia.Props) {

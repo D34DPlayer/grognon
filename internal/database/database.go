@@ -39,7 +39,7 @@ func (t EpochTime) Value() (driver.Value, error) {
 	if !t.Valid {
 		return nil, nil
 	}
-	return t.Time.Unix(), nil
+	return t.Unix(), nil
 }
 
 func Now() EpochTime {

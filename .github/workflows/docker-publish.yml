@@ -1,0 +1,71 @@
+name: Docker Publish
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # Allows manual triggering
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_SSR: ${{ github.repository_owner }}/grognon-ssr
+  IMAGE_NAME_CORE: ${{ github.repository_owner }}/grognon-core
+
+jobs:
+  build-and-push-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for SSR image
+        id: meta_ssr
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_SSR }}
+          tags: |
+            type=sha,prefix=
+            latest
+
+      - name: Build and push grognon-ssr Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runner-node
+          push: true
+          tags: ${{ steps.meta_ssr.outputs.tags }}
+          labels: ${{ steps.meta_ssr.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata (tags, labels) for Core image
+        id: meta_core
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_CORE }}
+          tags: |
+            type=sha,prefix=
+            latest
+
+      - name: Build and push grognon-core Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runner-go
+          push: true
+          tags: ${{ steps.meta_core.outputs.tags }}
+          labels: ${{ steps.meta_core.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

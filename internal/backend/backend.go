@@ -18,7 +18,10 @@ func Setup(db *database.Database, cons database.Connections, ssrHost string) err
 		sessionKey = "grognon"
 	}
 	store := sessions.NewCookieStore([]byte(sessionKey))
-	i := initInertia(ssrHost)
+	i, err := initInertia(ssrHost)
+	if err != nil {
+		return err
+	}
 
 	router := mux.NewRouter()
 
@@ -28,6 +31,8 @@ func Setup(db *database.Database, cons database.Connections, ssrHost string) err
 		Handler(GetNewConnections(i))
 	router.Methods("GET").Path("/connections/{connection_id}").
 		Handler(GetConnection(i, db))
+	router.Methods("DELETE").Path("/connections/{connection_id}").
+		Handler(DeleteConnection(i, db, cons))
 	router.Methods("GET").Path("/connections/{connection_id}/crons").
 		Handler(GetCrons(i, db))
 	router.Methods("GET").Path("/connections/{connection_id}/crons/create").
@@ -42,6 +47,8 @@ func Setup(db *database.Database, cons database.Connections, ssrHost string) err
 		Handler(GetCronData(i, db))
 	router.Methods("GET").Path("/crons/{cron_id}").
 		Handler(GetCron(i, db))
+	router.Methods("DELETE").Path("/crons/{cron_id}").
+		Handler(DeleteCrons(i, db))
 	router.Methods("GET").Path("/crons").
 		Handler(GetCrons(i, db))
 	router.Methods("POST").Path("/crons").
@@ -98,7 +105,11 @@ func (e *Errors) Add(key string, err error) {
 
 func (e *Errors) Save(w http.ResponseWriter, r *http.Request) {
 	e.session.Values["errors"] = e.errs
-	e.session.Save(r, w)
+	err := e.session.Save(r, w)
+	if err != nil {
+		slog.Error("Failed to save session with errors", "error", err)
+		return
+	}
 }
 
 func (e *Errors) Request(r *http.Request) *http.Request {

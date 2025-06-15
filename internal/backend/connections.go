@@ -113,3 +113,34 @@ func GetConnection(i *inertia.Inertia, db *database.Database) http.Handler {
 
 	return i.Middleware(http.HandlerFunc(fn))
 }
+
+func DeleteConnection(i *inertia.Inertia, db *database.Database, cons database.Connections) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		errs := NewErrors(r)
+		vars := mux.Vars(r)
+
+		connectionId, err := strconv.ParseInt(vars["connection_id"], 10, 64)
+		if err != nil {
+			slog.Error("Failed to parse connection id", slog.Any("error", err))
+			errs.Add("input", err)
+
+			Render(w, errs.Request(r), i, "Home/Connection", nil)
+			return
+		}
+
+		err = database.DeleteConnection(db, cons, connectionId)
+		if err != nil {
+			slog.Error("Failed to delete connection", slog.Any("error", err))
+			errs.Add("deletion", err)
+		}
+
+		if errs.HasErrors() {
+			errs.Save(w, r)
+			i.Back(w, r)
+		} else {
+			i.Redirect(w, r, "/connections")
+		}
+	}
+
+	return i.Middleware(http.HandlerFunc(fn))
+}

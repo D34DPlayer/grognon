@@ -1,18 +1,18 @@
 services:
-  grognon-frontend:
-    image: d34d/grognon-frontend:latest
+  grognon-ssr:
+    image: d34d/grognon-ssr:latest
     build:
       context: .
       target: runner-node
 
-  grognon-backend:
-    image: d34d/grognon-backend:latest
+  grognon-core:
+    image: d34d/grognon-core:latest
     build:
       context: .
       target: runner-go
     command:
       - --data=/app/data
-      - --ssr=http://grognon-frontend:13714
+      - --ssr=http://grognon-ssr:13714
     volumes:
       - ./data:/app/data
     ports:

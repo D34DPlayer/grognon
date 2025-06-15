@@ -250,3 +250,35 @@ func GetCronData(i *inertia.Inertia, db *database.Database) http.Handler {
 
 	return i.Middleware(http.HandlerFunc(fn))
 }
+
+func DeleteCrons(i *inertia.Inertia, db *database.Database) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		errs := NewErrors(r)
+		vars := mux.Vars(r)
+
+		cronId, err := strconv.ParseInt(vars["cron_id"], 10, 64)
+		if err != nil {
+			slog.Error("Failed to parse cron id", slog.Any("error", err))
+			errs.Add("input", err)
+
+			Render(w, errs.Request(r), i, "Home/Cron", nil)
+			return
+		}
+
+		err = database.DeleteCron(db, cronId)
+		if err != nil {
+			slog.Error("Failed to delete cron", slog.Any("error", err))
+			errs.Add("deletion", err)
+		}
+
+		if errs.HasErrors() {
+			errs.Save(w, r)
+			i.Back(w, r)
+		} else {
+			i.Redirect(w, r, "/crons")
+		}
+		SaveSession(w, r)
+	}
+
+	return i.Middleware(http.HandlerFunc(fn))
+}

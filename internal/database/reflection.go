@@ -22,7 +22,11 @@ func reflectSqlite(db *Database, con_id int64, con *sqle.DB) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to query tables")
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("Error closing rows", slog.Any("error", err))
+		}
+	}()
 
 	for rows.Next() {
 		var table string

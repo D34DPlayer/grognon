@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { router } from '@inertiajs/vue3'
 import type { Column, Connection } from '@/types'
 import ConnectionChip from '@/components/ConnectionChip.vue'
 import { useLink } from '@/composables'
@@ -30,6 +31,12 @@ const colsPerTable = computed(() => {
   }
   return cols
 })
+
+const deleteConnection = () => {
+  if (confirm('Are you sure you want to delete this connection?')) {
+    router.delete(`/connections/${props.connectionId}`)
+  }
+}
 </script>
 
 <template>
@@ -68,8 +75,12 @@ const colsPerTable = computed(() => {
         </v-btn>
         <v-btn
           v-bind="useLink(`/connections/${props.connectionId}/crons/create`)"
+          color="success"
         >
           Create Cron
+        </v-btn>
+        <v-btn @click="deleteConnection" color="error">
+          Delete Connection
         </v-btn>
       </v-card-actions>
     </v-card>
