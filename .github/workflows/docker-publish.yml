@@ -9,6 +9,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME_SSR: ${{ github.repository_owner }}/grognon-ssr
   IMAGE_NAME_CORE: ${{ github.repository_owner }}/grognon-core
+  PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
   build-and-push-images:
@@ -47,6 +48,7 @@ jobs:
           file: ./Dockerfile
           target: runner-node
           push: true
+          platforms: ${{ env.PLATFORMS }}
           tags: ${{ steps.meta_ssr.outputs.tags }}
           labels: ${{ steps.meta_ssr.outputs.labels }}
           cache-from: type=gha
@@ -68,6 +70,7 @@ jobs:
           file: ./Dockerfile
           target: runner-go
           push: true
+          platforms: ${{ env.PLATFORMS }}
           tags: ${{ steps.meta_core.outputs.tags }}
           labels: ${{ steps.meta_core.outputs.labels }}
           cache-from: type=gha
