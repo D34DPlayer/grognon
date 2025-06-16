@@ -95,6 +95,9 @@ jobs:
           - core
     needs:
       - build
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
