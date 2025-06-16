@@ -4,7 +4,7 @@ export default antfu({
   vue: true,
   formatters: {
     css: true,
-    html: true,
+    html: false,
     markdown: true,
   },
 }, [
