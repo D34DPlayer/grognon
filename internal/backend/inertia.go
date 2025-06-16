@@ -93,7 +93,7 @@ func vite(manifestPath, buildDir string) func(path string) (string, error) {
 	err = json.NewDecoder(f).Decode(&viteAssets)
 	// print content of viteAssets
 	for k, v := range viteAssets {
-		slog.Info("viteAssets", slog.Any(k, v.File))
+		slog.Debug("viteAssets", slog.Any(k, v.File))
 	}
 
 	if err != nil {

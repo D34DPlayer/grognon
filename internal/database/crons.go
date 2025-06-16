@@ -188,7 +188,7 @@ func updateCronLastRun(db *Database, cronId int64) (*EpochTime, error) {
 }
 
 func ExecuteCrons(db *Database, cons Connections) error {
-	slog.Info("Executing crons")
+	slog.Debug("Executing crons")
 	var crons []Cron
 	rows, err := db.Query("SELECT * FROM crons WHERE deleted_at IS NULL")
 	if err != nil {
@@ -197,7 +197,7 @@ func ExecuteCrons(db *Database, cons Connections) error {
 	if err := rows.Bind(&crons); err != nil {
 		return errors.Wrap(err, "Error binding crons")
 	}
-	slog.Info("Found crons", slog.Int("count", len(crons)))
+	slog.Debug("Found crons", slog.Int("count", len(crons)))
 
 	for _, cron := range crons {
 		if !cron.NeedsToRun() {
