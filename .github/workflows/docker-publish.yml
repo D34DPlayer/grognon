@@ -12,7 +12,7 @@ env:
   IMAGE_NAME_PREFIX: ${{ github.repository_owner }}/grognon-
 jobs:
   build:
-    name: Build ${{matrix.app}} on ${{matrix.platform.alias}}
+    name: Build ${{ matrix.app.name }} on ${{ matrix.platform.alias }}
     strategy:
       fail-fast: false
       matrix:
