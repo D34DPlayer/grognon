@@ -9,7 +9,7 @@ on:
   workflow_dispatch: # Allows manual triggering
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_PREFIX: ${{ github.repository_owner }}/grognon-
+  IMAGE_NAME_PREFIX: ${{ github.repository }}-
 jobs:
   build:
     name: Build ${{ matrix.app.name }} on ${{ matrix.platform.alias }}
