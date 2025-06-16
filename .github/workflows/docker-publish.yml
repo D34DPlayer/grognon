@@ -9,7 +9,7 @@ on:
   workflow_dispatch: # Allows manual triggering
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_PREFIX: ${{ github.repository }}-
+  IMAGE_NAME_PREFIX: d34dplayer/grognon-
 jobs:
   build:
     name: Build ${{ matrix.app.name }} on ${{ matrix.platform.alias }}
