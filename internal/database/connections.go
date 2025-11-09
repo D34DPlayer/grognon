@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"github.com/yaitoo/sqle"
 )
@@ -25,9 +26,9 @@ func pushToConnections(db *Database, con Connection, connections Connections) er
 		}
 
 		if err == nil {
-			_, err = db.Exec("UPDATE connections SET connected = true, last_error = NULL, last_connected_at = unixepoch() WHERE connection_id = ?", con.ConnectionId)
+			_, err = db.Exec("UPDATE connections SET connected = true, last_error = NULL, last_connected_at = NOW() WHERE connection_id = $1", con.ConnectionId)
 		} else {
-			_, saveErr := db.Exec("UPDATE connections SET connected = false, last_error = ? WHERE connection_id = ?", err.Error(), con.ConnectionId)
+			_, saveErr := db.Exec("UPDATE connections SET connected = false, last_error = $1 WHERE connection_id = $2", err.Error(), con.ConnectionId)
 			if saveErr != nil {
 				err = errors.Wrap(saveErr, "failed to save connection error")
 			}
@@ -46,7 +47,7 @@ func pushToConnections(db *Database, con Connection, connections Connections) er
 
 func GetConnection(db *Database, id int64) (*Connection, error) {
 	var con Connection
-	err := db.QueryRow("SELECT * FROM connections WHERE connection_id = ? AND deleted_at IS NULL", id).
+	err := db.QueryRow("SELECT * FROM connections WHERE connection_id = $1 AND deleted_at IS NULL", id).
 		Bind(&con)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting connection")
@@ -55,13 +56,11 @@ func GetConnection(db *Database, id int64) (*Connection, error) {
 }
 
 func AddConnection(db *Database, connections Connections, input ConnectionCreate) (*Connection, error) {
-	res, err := db.Exec("INSERT INTO connections (db_type, connection_url) VALUES (?, ?)",
+	row := db.QueryRow("INSERT INTO connections (db_type, connection_url) VALUES ($1, $2) RETURNING connection_id",
 		input.DbType, input.ConnectionUrl)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error during the connection process")
-	}
 
-	id, err := res.LastInsertId()
+	var id int64
+	err := row.Scan(&id)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting last insert id")
 	}
@@ -80,12 +79,12 @@ func AddConnection(db *Database, connections Connections, input ConnectionCreate
 
 func DeleteConnection(db *Database, connections Connections, id int64) error {
 	// Delete related crons
-	_, err := db.Exec("UPDATE crons SET deleted_at = unixepoch() WHERE connection_id = ? AND deleted_at IS NOT NULL", id)
+	_, err := db.Exec("UPDATE crons SET deleted_at = NOW() WHERE connection_id = $1 AND deleted_at IS NOT NULL", id)
 	if err != nil {
 		return errors.Wrap(err, "Error deleting crons for connection")
 	}
 	// Delete connection
-	_, err = db.Exec("UPDATE connections SET connected = false, last_error = 'Connection removed', deleted_at = unixepoch() WHERE connection_id = ?", id)
+	_, err = db.Exec("UPDATE connections SET connected = false, last_error = 'Connection removed', deleted_at = NOW() WHERE connection_id = $1", id)
 	if err != nil {
 		return errors.Wrap(err, "Error saving the disconnection")
 	}

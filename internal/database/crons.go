@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/yaitoo/sqle"
@@ -99,7 +100,7 @@ func createCronTable(db *Database, con *sqle.DB, cron Cron) ([]CronOutput, error
 	}
 
 	tableQuery := fmt.Sprintf(`CREATE TABLE cron_%d (
-		timestamp INTEGER NOT NULL`, cron.CronId)
+		timestamp TIMESTAMPTZ NOT NULL`, cron.CronId)
 	indexQuery := fmt.Sprintf(
 		"CREATE INDEX cron_%d_timestamp ON cron_%d(timestamp);",
 		cron.CronId,
@@ -110,6 +111,7 @@ func createCronTable(db *Database, con *sqle.DB, cron Cron) ([]CronOutput, error
 		tableQuery += fmt.Sprintf(",%s %s", output.Name, output.Type)
 	}
 	tableQuery += ");"
+	slog.Debug("Cron table creation", slog.String("tableQuery", tableQuery), slog.String("indexQuery", indexQuery))
 
 	if _, err := db.Exec(tableQuery); err != nil {
 		return nil, err
@@ -128,17 +130,15 @@ func AddCron(db *Database, cons Connections, input CronCreate) (*Cron, error) {
 	}
 
 	// Create Cron in DB
-	res, err := db.Exec(
-		"INSERT INTO crons (connection_id, name, command, schedule) VALUES (?, ?, ?, ?);",
+	row := db.QueryRow(
+		"INSERT INTO crons (connection_id, name, command, schedule) VALUES ($1, $2, $3, $4) RETURNING cron_id;",
 		input.ConnectionId,
 		input.Name,
 		input.Command,
 		input.Schedule,
 	)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error inserting cron")
-	}
-	cronId, err := res.LastInsertId()
+	var cronId int64
+	err := row.Scan(&cronId)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting cron ID")
 	}
@@ -151,7 +151,7 @@ func AddCron(db *Database, cons Connections, input CronCreate) (*Cron, error) {
 	// Create Cron table
 	outputs, err := createCronTable(db, con, *cron)
 	if err != nil {
-		_, _ = db.Exec("DELETE FROM crons WHERE cron_id = ?", cron.CronId)
+		_, _ = db.Exec("DELETE FROM crons WHERE cron_id = $1;", cron.CronId)
 		return nil, errors.Wrap(err, "Error creating cron table")
 	}
 
@@ -164,8 +164,9 @@ func AddCron(db *Database, cons Connections, input CronCreate) (*Cron, error) {
 	insertQuery := `INSERT INTO cron_outputs (cron_id, name, type) VALUES `
 	var params []interface{}
 
-	for _, output := range outputs {
-		insertQuery += "(?,?,?),"
+	for i, output := range outputs {
+		offset := 3*i + 1
+		insertQuery += fmt.Sprintf("($%d,$%d,$%d),", offset, offset+1, offset+2)
 		params = append(params, cron.CronId, output.Name, output.Type)
 	}
 	insertQuery = insertQuery[:len(insertQuery)-1] + ";"
@@ -178,10 +179,10 @@ func AddCron(db *Database, cons Connections, input CronCreate) (*Cron, error) {
 	return cron, tx.Commit()
 }
 
-func updateCronLastRun(db *Database, cronId int64) (*EpochTime, error) {
-	now := Now()
+func updateCronLastRun(db *Database, cronId int64) (*time.Time, error) {
+	now := time.Now()
 	// Update last run time of cron
-	if _, err := db.Exec("UPDATE crons SET last_run_at = ? WHERE cron_id = ?", now, cronId); err != nil {
+	if _, err := db.Exec("UPDATE crons SET last_run_at = $1 WHERE cron_id = $2", now, cronId); err != nil {
 		return nil, errors.Wrap(err, "Error updating cron last run")
 	}
 	return &now, nil
@@ -231,16 +232,21 @@ func ExecuteCrons(db *Database, cons Connections) error {
 		insertQuery += ") VALUES "
 
 		var params []interface{}
+		argCounter := 1
 		for i := range objects {
-			insertQuery += "(?,"
+			insertQuery += fmt.Sprintf("($%d,", argCounter)
+			argCounter++
 			params = append(params, now)
 			for _, col := range cols {
-				insertQuery += "?,"
+				insertQuery += fmt.Sprintf("$%d,", argCounter)
+				argCounter++
 				params = append(params, objects[i][col])
 			}
 			insertQuery = insertQuery[:len(insertQuery)-1] + "),"
 		}
 		insertQuery = insertQuery[:len(insertQuery)-1] + ";"
+
+		slog.Debug("Inserting cron results", slog.String("query", insertQuery), slog.Int("params_count", len(params)), slog.Any("params", params))
 
 		if _, err := db.Exec(insertQuery, params...); err != nil {
 			slog.Error("Error inserting cron", slog.Int64("id", cron.CronId), slog.Any("error", err))
@@ -258,7 +264,7 @@ func GetCrons(db *Database, connectionId *int64) ([]Cron, error) {
 	var args []interface{}
 
 	if connectionId != nil {
-		query += " AND connection_id = ?"
+		query += " AND connection_id = $1"
 		args = append(args, *connectionId)
 	}
 
@@ -274,7 +280,7 @@ func GetCrons(db *Database, connectionId *int64) ([]Cron, error) {
 
 func GetCron(db *Database, cronId int64) (*Cron, error) {
 	var cron Cron
-	row := db.QueryRow("SELECT * FROM crons WHERE cron_id = ? AND deleted_at IS NULL", cronId)
+	row := db.QueryRow("SELECT * FROM crons WHERE cron_id = $1 AND deleted_at IS NULL", cronId)
 	if err := row.Bind(&cron); err != nil {
 		return nil, errors.Wrap(err, "Error binding cron")
 	}
@@ -286,7 +292,7 @@ func GetCron(db *Database, cronId int64) (*Cron, error) {
 
 func GetCronOutputs(db *Database, cronId int64) ([]CronOutput, error) {
 	var outputs []CronOutput
-	rows, err := db.Query("SELECT * FROM cron_outputs WHERE cron_id = ?", cronId)
+	rows, err := db.Query("SELECT * FROM cron_outputs WHERE cron_id = $1", cronId)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting cron outputs")
 	}
@@ -298,7 +304,7 @@ func GetCronOutputs(db *Database, cronId int64) ([]CronOutput, error) {
 
 func DeleteCron(db *Database, cronId int64) error {
 	// Mark cron as deleted
-	if _, err := db.Exec("UPDATE crons SET deleted_at = ? WHERE cron_id = ?", Now(), cronId); err != nil {
+	if _, err := db.Exec("UPDATE crons SET deleted_at = $1 WHERE cron_id = $2", time.Now(), cronId); err != nil {
 		return errors.Wrap(err, "Error deleting cron")
 	}
 
@@ -319,7 +325,7 @@ func UpdateCron(db *Database, con *sqle.DB, cron Cron) error {
 
 	// Update cron in DB
 	if _, err := tx.Exec(
-		"UPDATE crons SET name = ?, command = ?, schedule = ? WHERE cron_id = ?",
+		"UPDATE crons SET name = $1, command = $2, schedule = $3 WHERE cron_id = $4",
 		cron.Name,
 		cron.Command,
 		cron.Schedule,

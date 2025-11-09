@@ -37,23 +37,23 @@ func reflectSqlite(db *Database, con_id int64, con *sqle.DB) error {
 	}
 
 	// Wipe cache
-	_, err = tx.Exec("DELETE FROM tables WHERE connection_id = ?;", con_id)
+	_, err = tx.Exec("DELETE FROM tables WHERE connection_id = $1;", con_id)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete tables")
 	}
-	_, err = tx.Exec("DELETE FROM columns WHERE connection_id = ?;", con_id)
+	_, err = tx.Exec("DELETE FROM columns WHERE connection_id = $1;", con_id)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete columns")
 	}
 
 	for _, table := range table_names {
-		_, err := tx.Exec("INSERT INTO tables (connection_id, table_name) VALUES (?, ?) ;", con_id, table)
+		_, err := tx.Exec("INSERT INTO tables (connection_id, table_name) VALUES ($1, $2);", con_id, table)
 		if err != nil {
 			return errors.Wrap(err, "failed to insert table")
 		}
 
 		var columns []Column
-		// The built-in parameter substitution fails with `near "?": syntax error`
+		// The built-in parameter substitution fails with `near "$1": syntax error`
 		rows, err := con.Query(
 			fmt.Sprintf("PRAGMA table_info('%s');", table),
 		)
@@ -67,8 +67,12 @@ func reflectSqlite(db *Database, con_id int64, con *sqle.DB) error {
 		cols_query := "INSERT INTO columns(connection_id,table_name,name,type,\"notnull\",dflt_value,pk) VALUES "
 		params := []interface{}{}
 		for _, column := range columns {
-			//  VALUES(?,?,?,?,?,?,?)
-			cols_query += "(?,?,?,?,?,?,?),"
+			offset := len(params) + 1
+			cols_query += "("
+			for i := range 7 {
+				cols_query += "$" + fmt.Sprint(offset+i) + ","
+			}
+			cols_query = cols_query[:len(cols_query)-1] + "),"
 			params = append(params, con_id, table, column.Name, column.Type, column.Notnull, column.DfltValue, column.PK)
 		}
 		cols_query = cols_query[:len(cols_query)-1] + ";"
@@ -129,7 +133,7 @@ func ReflectAll(db *Database, connections Connections) error {
 
 func GetColumns(db *Database, con_id int64) ([]Column, error) {
 	var cols []Column
-	rows, err := db.Query("SELECT * FROM columns WHERE connection_id = ? ", con_id)
+	rows, err := db.Query("SELECT * FROM columns WHERE connection_id = $1 ", con_id)
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Data    string
 	SsrHost string
+	DBUrl   string
 }
 
 func action(ctx context.Context, cfg Config) error {
@@ -24,7 +25,7 @@ func action(ctx context.Context, cfg Config) error {
 		}
 	}
 
-	db, err := database.Setup(ctx, cfg.Data)
+	db, err := database.Setup(ctx, cfg.DBUrl)
 	if err != nil {
 		return cli.Exit(err, 1)
 	}
@@ -47,16 +48,19 @@ func action(ctx context.Context, cfg Config) error {
 func main() {
 	flags := []cli.Flag{
 		&cli.StringFlag{
-			Name:    "data",
-			Value:   "./data",
-			Aliases: []string{"d"},
-			Usage:   "Folder where the data is stored",
+			Name:  "data",
+			Value: "./data",
+			Usage: "Folder where the data is stored",
 		},
 		&cli.StringFlag{
-			Name:    "ssr",
-			Value:   "http://127.0.0.1:13714",
-			Aliases: []string{"s"},
-			Usage:   "Hostname for SSR",
+			Name:  "ssr",
+			Value: "http://127.0.0.1:13714",
+			Usage: "Hostname for SSR",
+		},
+		&cli.StringFlag{
+			Name:     "db",
+			Required: true,
+			Usage:    "Database connection string",
 		},
 	}
 	cmd := cli.Command{
@@ -67,6 +71,7 @@ func main() {
 			config := Config{
 				Data:    cmd.String("data"),
 				SsrHost: cmd.String("ssr"),
+				DBUrl:   cmd.String("db"),
 			}
 			return action(ctx, config)
 		},

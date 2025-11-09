@@ -2,64 +2,33 @@ package database
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
 	"fmt"
 	"log/slog"
-	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/jackc/pgx/v5/pgxpool"
+	pgxStdlib "github.com/jackc/pgx/v5/stdlib"
 	"github.com/yaitoo/sqle"
 )
 
-type EpochTime struct {
-	time.Time
-	Valid bool
-}
-
-func (t *EpochTime) Scan(value interface{}) error {
-	if value == nil {
-		t.Time = time.Time{}
-		t.Valid = false
-		return nil
-	}
-	t.Valid = true
-	switch value := value.(type) {
-	case int64:
-		t.Time = time.Unix(value, 0)
-	case string:
-		t.Time, _ = time.Parse(time.RFC3339, value)
-	default:
-		return fmt.Errorf("unsupported type for EpochTime: %T", value)
-	}
-	return nil
-}
-
-func (t EpochTime) Value() (driver.Value, error) {
-	if !t.Valid {
-		return nil, nil
-	}
-	return t.Unix(), nil
-}
-
-func Now() EpochTime {
-	return EpochTime{time.Now(), true}
-}
-
 type Database struct {
+	PgxPool *pgxpool.Pool
 	*sqle.DB
 }
 
-func Setup(ctx context.Context, dataDir string) (*Database, error) {
-	slog.Info("Opening database", slog.String("path", dataDir))
-	sqldb, err := sql.Open("sqlite3", "file:"+dataDir+"/grognon.db?cache=shared")
+func Setup(ctx context.Context, dbUrl string) (*Database, error) {
+	slog.Debug("Opening database", slog.String("url", dbUrl))
+	pgxConfig, err := pgxpool.ParseConfig(dbUrl)
 	if err != nil {
-		return nil, fmt.Errorf("db: failed to open sqlite database %s: %w", dataDir, err)
+		return nil, fmt.Errorf("db: failed to parse postgres database URL %s: %w", dbUrl, err)
+	}
+	pgxPool, err := pgxpool.NewWithConfig(ctx, pgxConfig)
+	if err != nil {
+		return nil, fmt.Errorf("db: failed to create pgx pool: %w", err)
 	}
 
-	sqleDb := sqle.Open(sqldb)
-
-	db := &Database{sqleDb}
+	sqlDb := pgxStdlib.OpenDBFromPool(pgxPool)
+	sqleDb := sqle.Open(sqlDb)
+	db := &Database{PgxPool: pgxPool, DB: sqleDb}
 
 	slog.Info("Checking for migrations")
 	if err := db.Migrate(ctx); err != nil {

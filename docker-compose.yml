@@ -1,4 +1,13 @@
 services:
+  grognon-db:
+    image: bitnami/postgresql:latest
+    environment:
+      - POSTGRES_USER=grognon
+      - POSTGRES_PASSWORD=grognon
+      - POSTGRES_DB=grognon
+    volumes:
+      - ./data/grognon:/bitnami/postgresql
+
   grognon-ssr:
     image: d34d/grognon-ssr:latest
     build:
@@ -11,6 +20,7 @@ services:
       context: .
       target: runner-go
     command:
+      - --db=postgres://grognon:grognon@grognon-db:5432/grognon
       - --data=/app/data
       - --ssr=http://grognon-ssr:13714
     volumes:

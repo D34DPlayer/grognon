@@ -11,10 +11,10 @@ type Connection struct {
 	ConnectionId    int64
 	DbType          string
 	ConnectionUrl   string
-	CreatedAt       EpochTime
-	DeletedAt       *EpochTime
+	CreatedAt       time.Time
+	DeletedAt       *time.Time
 	Connected       bool
-	LastConnectedAt *EpochTime
+	LastConnectedAt *time.Time
 	LastError       *string
 }
 
@@ -47,9 +47,9 @@ type Cron struct {
 	Schedule     string
 
 	CronId    int64
-	CreatedAt EpochTime
-	DeletedAt *EpochTime
-	LastRunAt *EpochTime
+	CreatedAt time.Time
+	DeletedAt *time.Time
+	LastRunAt *time.Time
 }
 
 func (c *Cron) NeedsToRun() bool {
