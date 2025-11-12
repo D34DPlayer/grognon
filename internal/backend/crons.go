@@ -235,7 +235,7 @@ func GetCronData(i *inertia.Inertia, db *database.Database) http.Handler {
 		}
 		props["cronOutputs"] = outputs
 
-		data, err := database.GetCronData(db, cronId)
+		data, err := database.GetCronData(db, cron.Slug)
 		if err != nil {
 			slog.Error("Failed to get cron data", slog.Any("error", err))
 			errs.Add("data", err)

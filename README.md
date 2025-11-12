@@ -12,7 +12,6 @@ The outputs are saved with the timestamp to a database table on Grognon's side, 
 
 This is not ordered and will evolve over time
 
-- [ ] Use a PostgreSQL database for the internal storage
 - [ ] Support other database types for Connections
 - [ ] Allow editing Connections
 - [ ] Migrate from incremental IDs to UUIDs

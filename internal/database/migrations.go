@@ -61,10 +61,13 @@ CREATE TABLE crons (
     name          TEXT      NOT NULL,
     command       TEXT      NOT NULL,
     schedule      TEXT      NOT NULL,
+    slug          TEXT      NOT NULL,
 
     created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     deleted_at    TIMESTAMPTZ,
-    last_run_at   TIMESTAMPTZ
+    last_run_at   TIMESTAMPTZ,
+
+    CONSTRAINT crons_slug_unique UNIQUE (slug)
 );
 
 CREATE TABLE cron_outputs (
@@ -74,6 +77,8 @@ CREATE TABLE cron_outputs (
 
     CONSTRAINT cron_outputs_pk PRIMARY KEY (cron_id, name)
 );
+
+CREATE SCHEMA IF NOT EXISTS crons_data;
             `,
 			DownSQL: `
 DROP TABLE connections;
@@ -81,6 +86,8 @@ DROP TABLE tables;
 DROP TABLE columns;
 DROP TABLE crons;
 DROP TABLE cron_outputs;
+
+DROP SCHEMA IF EXISTS crons_data CASCADE;
 `,
 		},
 	}

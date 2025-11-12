@@ -99,12 +99,12 @@ func createCronTable(db *Database, con *sqle.DB, cron Cron) ([]CronOutput, error
 		return nil, err
 	}
 
-	tableQuery := fmt.Sprintf(`CREATE TABLE cron_%d (
-		timestamp TIMESTAMPTZ NOT NULL`, cron.CronId)
+	tableQuery := fmt.Sprintf(`CREATE TABLE crons_data.%s (
+		timestamp TIMESTAMPTZ NOT NULL`, cron.Slug)
 	indexQuery := fmt.Sprintf(
-		"CREATE INDEX cron_%d_timestamp ON cron_%d(timestamp);",
+		"CREATE INDEX cron_%d_timestamp ON crons_data.%s(timestamp);",
 		cron.CronId,
-		cron.CronId,
+		cron.Slug,
 	)
 
 	for _, output := range outputs {
@@ -131,11 +131,12 @@ func AddCron(db *Database, cons Connections, input CronCreate) (*Cron, error) {
 
 	// Create Cron in DB
 	row := db.QueryRow(
-		"INSERT INTO crons (connection_id, name, command, schedule) VALUES ($1, $2, $3, $4) RETURNING cron_id;",
+		"INSERT INTO crons (connection_id, name, command, schedule, slug) VALUES ($1, $2, $3, $4, $5) RETURNING cron_id;",
 		input.ConnectionId,
 		input.Name,
 		input.Command,
 		input.Schedule,
+		input.TableName(),
 	)
 	var cronId int64
 	err := row.Scan(&cronId)
@@ -225,7 +226,7 @@ func ExecuteCrons(db *Database, cons Connections) error {
 			continue
 		}
 		slog.Info("Saving results for cron", slog.Int64("id", cron.CronId))
-		insertQuery := fmt.Sprintf("INSERT INTO cron_%d (timestamp", cron.CronId)
+		insertQuery := fmt.Sprintf("INSERT INTO crons_data.%s (timestamp", cron.Slug)
 		for _, col := range cols {
 			insertQuery += "," + col
 		}
@@ -356,9 +357,9 @@ func UpdateCron(db *Database, con *sqle.DB, cron Cron) error {
 	return tx.Commit()
 }
 
-func GetCronData(db *Database, cronId int64) ([]CronData, error) {
+func GetCronData(db *Database, slug string) ([]CronData, error) {
 	var data []CronData
-	query := fmt.Sprintf("SELECT * FROM cron_%d ORDER BY timestamp DESC", cronId)
+	query := fmt.Sprintf("SELECT * FROM crons_data.%s ORDER BY timestamp DESC", slug)
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting cron data")

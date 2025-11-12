@@ -1,6 +1,8 @@
 package database
 
-import "time"
+import (
+	"time"
+)
 
 type ConnectionCreate struct {
 	DbType        string
@@ -40,6 +42,27 @@ type CronCreate struct {
 	Schedule     string
 }
 
+func (c *CronCreate) TableName() string {
+	// Replace invalid characters
+	tableName := ""
+	escaping := false
+	for _, r := range c.Name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			if escaping {
+				tableName += "_"
+				escaping = false
+			}
+			tableName += string(r)
+		} else {
+			escaping = true
+		}
+	}
+	if len(tableName) > 50 {
+		tableName = tableName[:29] + "..."
+	}
+	return tableName
+}
+
 type Cron struct {
 	ConnectionId int64
 	Name         string
@@ -47,6 +70,7 @@ type Cron struct {
 	Schedule     string
 
 	CronId    int64
+	Slug      string
 	CreatedAt time.Time
 	DeletedAt *time.Time
 	LastRunAt *time.Time
